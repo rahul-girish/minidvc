@@ -1,5 +1,6 @@
 #include "hash.h"
 #include "storage.h"
+#include "manifest.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -28,13 +29,21 @@ int main(int argc, char **argv)
 	if (argc == 4 && strcmp(argv[1], "restore") == 0)
 		return storage_restore(argv[2], argv[3]) == 0 ? 0 : 1;
 
+	if (argc >= 4 && strcmp(argv[1], "snapshot") == 0)
+    	return manifest_snapshot(argv[2], argc - 3, &argv[3]) == 0 ? 0 : 1;
+
+	if (argc == 4 && strcmp(argv[1], "checkout") == 0)
+    	return manifest_checkout(argv[2], argv[3]) == 0 ? 0 : 1;
+
     fprintf(stderr,
         "Usage:\n"
         "  %s hash <file>\n"
         "  %s add <file>\n"
         "  %s verify <sha256>\n"
-		"  %s restore <sha256> <output>\n",
-        argv[0], argv[0], argv[0], argv[0]);
+		"  %s restore <sha256> <output>\n"
+		"  %s snapshot <name> <file> [file ...]\n"
+		"  %s checkout <name> <output-dir>\n",
+        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
 
     return 2;
 }

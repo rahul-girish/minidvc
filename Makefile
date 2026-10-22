@@ -4,7 +4,7 @@ CFLAGS := -std=c17 -Wall -Wextra -Wpedantic -O2
 LDLIBS := $(shell pkg-config --libs libcrypto libzstd)
 
 TARGET := minidvc
-SOURCES := src/main.c src/hash.c src/storage.c
+SOURCES := src/main.c src/hash.c src/storage.c src/manifest.c
 OBJECTS := $(SOURCES:.c=.o)
 
 
