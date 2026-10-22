@@ -1,1 +1,3 @@
 /build/
+/minidvc
+/src/*.o
