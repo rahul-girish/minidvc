@@ -2,3 +2,10 @@
 /minidvc
 /src/*.o
 /.mydvc/tmp/
+/.mydvc/objects/
+/.mydvc/config
+/.mydvc/config.tmp-*
+/.mydvc/credentials
+/.mydvc/credentials.tmp-*
+/.mydvc/project.tmp-*
+*.minidvc-*

@@ -241,17 +241,9 @@ int storage_add(const char *path)
     return -1;
 }
 
-int storage_verify(const char *hash)
+static int verify_zst_file(const char *path, const char *hash,
+                           uint64_t *out_uncompressed_size)
 {
-    if (!valid_hash(hash)) {
-        fprintf(stderr, "minidvc: invalid SHA-256 hash\n");
-        return -1;
-    }
-
-    char path[160];
-    if (object_path(hash, path, sizeof path))
-        return -1;
-
     FILE *in = fopen(path, "rb");
     if (!in) {
         perror(path);
@@ -267,6 +259,7 @@ int storage_verify(const char *hash)
     unsigned char digest[EVP_MAX_MD_SIZE];
     unsigned int digest_len = 0;
     size_t remaining = 1;
+    uint64_t total_size = 0;
 
     if (ok)
         ok = EVP_DigestInit_ex(md, EVP_sha256(), NULL) == 1;
@@ -289,10 +282,12 @@ int storage_verify(const char *hash)
                 break;
             }
 
-            if (output.pos &&
-                EVP_DigestUpdate(md, obuf, output.pos) != 1) {
-                ok = 0;
-                break;
+            if (output.pos) {
+                total_size += output.pos;
+                if (EVP_DigestUpdate(md, obuf, output.pos) != 1) {
+                    ok = 0;
+                    break;
+                }
             }
 
             /* Reject trailing data after the compressed frame. */
@@ -327,7 +322,84 @@ int storage_verify(const char *hash)
     if (fclose(in) != 0)
         ok = 0;
 
-    if (!ok) {
+    if (ok && out_uncompressed_size)
+        *out_uncompressed_size = total_size;
+
+    return ok ? 0 : -1;
+}
+
+int storage_valid_hash(const char *hash)
+{
+    return valid_hash(hash);
+}
+
+int storage_object_path(const char *hash, char *out, size_t cap)
+{
+    if (!valid_hash(hash))
+        return -1;
+    return object_path(hash, out, cap);
+}
+
+int storage_has_object(const char *hash)
+{
+    char path[160];
+    struct stat st;
+
+    if (!valid_hash(hash) || object_path(hash, path, sizeof path) != 0)
+        return 0;
+
+    return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+int storage_uncompressed_size(const char *hash, uint64_t *out_size)
+{
+    char path[160];
+    if (!valid_hash(hash) || object_path(hash, path, sizeof path) != 0)
+        return -1;
+    return verify_zst_file(path, hash, out_size);
+}
+
+int storage_import_object(const char *hash, const char *tmp_path)
+{
+    if (!valid_hash(hash) || !tmp_path || !*tmp_path) {
+        fprintf(stderr, "minidvc: invalid hash or temp path\n");
+        return -1;
+    }
+
+    if (verify_zst_file(tmp_path, hash, NULL) != 0) {
+        fprintf(stderr, "minidvc: downloaded object failed verification: %s\n", hash);
+        return -1;
+    }
+
+    char dest[160];
+    if (prepare_object_dirs(hash) != 0 ||
+        object_path(hash, dest, sizeof dest) != 0) {
+        fprintf(stderr, "minidvc: cannot prepare object path\n");
+        return -1;
+    }
+
+    if (link(tmp_path, dest) == 0)
+        return 0;
+
+    if (errno == EEXIST)
+        return storage_verify(hash);
+
+    perror("link");
+    return -1;
+}
+
+int storage_verify(const char *hash)
+{
+    if (!valid_hash(hash)) {
+        fprintf(stderr, "minidvc: invalid SHA-256 hash\n");
+        return -1;
+    }
+
+    char path[160];
+    if (object_path(hash, path, sizeof path))
+        return -1;
+
+    if (verify_zst_file(path, hash, NULL) != 0) {
         fprintf(stderr, "minidvc: verification failed for %s\n", hash);
         return -1;
     }
